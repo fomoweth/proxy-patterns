@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
 
-/// @title ERC1967Utils
+/// @title  ERC1967Utils
 /// @notice Library for reading and writing ERC-1967 storage slots and emitting corresponding events for upgradeable proxies.
 /// @author fomoweth
 library ERC1967Utils {
@@ -30,30 +30,30 @@ library ERC1967Utils {
     event BeaconUpgraded(address indexed beacon);
 
     /// @notice Precomputed event topic for {Upgraded}.
-    /// @dev keccak256(bytes("Upgraded(address)"))
+    /// @dev    keccak256(bytes("Upgraded(address)"))
     bytes32 internal constant UPGRADED_EVENT_SIGNATURE =
         0xbc7cd75a20ee27fd9adebab32041f755214dbc6bffa90cc0225b39da2e5c2d3b;
 
     /// @notice Precomputed event topic for {AdminChanged}.
-    /// @dev keccak256(bytes("AdminChanged(address,address)"))
+    /// @dev    keccak256(bytes("AdminChanged(address,address)"))
     bytes32 internal constant ADMIN_CHANGED_EVENT_SIGNATURE =
         0x7e644d79422f17c01e4894b5f4f588d331ebfa28653d42ae832dc59e38c9798f;
 
     /// @notice Precomputed event topic for {BeaconUpgraded}.
-    /// @dev keccak256(bytes("BeaconUpgraded(address)"))
+    /// @dev    keccak256(bytes("BeaconUpgraded(address)"))
     bytes32 internal constant BEACON_UPGRADED_EVENT_SIGNATURE =
         0x1cf3b03a6cf19fa2baba4df148e9dcabedea7f8a5c07840e207e5c089be95d3e;
 
     /// @notice ERC-1967 storage slot for the implementation address.
-    /// @dev bytes32(uint256(keccak256(bytes("eip1967.proxy.implementation"))) - 1)
+    /// @dev    bytes32(uint256(keccak256(bytes("eip1967.proxy.implementation"))) - 1)
     bytes32 internal constant IMPLEMENTATION_SLOT = 0x360894a13ba1a3210667c828492db98dca3e2076cc3735a920a3ca505d382bbc;
 
     /// @notice ERC-1967 storage slot for the admin address.
-    /// @dev bytes32(uint256(keccak256(bytes("eip1967.proxy.admin"))) - 1)
+    /// @dev    bytes32(uint256(keccak256(bytes("eip1967.proxy.admin"))) - 1)
     bytes32 internal constant ADMIN_SLOT = 0xb53127684a568b3173ae13b9f8a6016e243e63b6e8ee1178d6a717850b5d6103;
 
     /// @notice ERC-1967 storage slot for the beacon address.
-    /// @dev bytes32(uint256(keccak256(bytes("eip1967.proxy.beacon"))) - 1)
+    /// @dev    bytes32(uint256(keccak256(bytes("eip1967.proxy.beacon"))) - 1)
     bytes32 internal constant BEACON_SLOT = 0xa3f0ad74e5423aebfd80d3ef4346578335a9a72aeaee59ff6cb3582b35133d50;
 
     /// @notice Returns the current implementation stored in the ERC-1967 implementation slot.
@@ -65,10 +65,10 @@ library ERC1967Utils {
     }
 
     /// @notice Upgrades the proxy implementation and optionally executes an initialization call.
-    /// @dev Reverts with {InvalidImplementation} if `implementation` has no deployed code.
-    ///      Emits {Upgraded} with `implementation`.
-    /// @param implementation The address of the new implementation contract.
-    /// @param data ABI-encoded initializer calldata, or empty to skip the execution.
+    /// @dev    Reverts with {InvalidImplementation} if `implementation` has no deployed code.
+    ///         Emits {Upgraded} with `implementation`.
+    /// @param  implementation The address of the new implementation contract.
+    /// @param  data ABI-encoded initializer calldata, or empty to skip the execution.
     function upgradeToAndCall(address implementation, bytes memory data) internal {
         assembly ("memory-safe") {
             implementation := shr(0x60, shl(0x60, implementation))
@@ -86,11 +86,11 @@ library ERC1967Utils {
     }
 
     /// @notice Upgrades the proxy implementation via the UUPS pattern with proxiable UUID validation.
-    /// @dev Reverts with {InvalidImplementation} if `proxiableUUID()` call fails or does not return 32 bytes.
-    ///      Reverts with {UnsupportedProxiableUUID} if returned UUID is not {IMPLEMENTATION_SLOT}.
-    ///      Emits {Upgraded} with `implementation`.
-    /// @param implementation The address of the new UUPS-compliant implementation contract.
-    /// @param data ABI-encoded initializer calldata, or empty to skip the execution.
+    /// @dev    Reverts with {InvalidImplementation} if `proxiableUUID()` call fails or does not return 32 bytes.
+    ///         Reverts with {UnsupportedProxiableUUID} if returned UUID is not {IMPLEMENTATION_SLOT}.
+    ///         Emits {Upgraded} with `implementation`.
+    /// @param  implementation The address of the new UUPS-compliant implementation contract.
+    /// @param  data ABI-encoded initializer calldata, or empty to skip the execution.
     function upgradeToAndCallUUPS(address implementation, bytes memory data) internal {
         assembly ("memory-safe") {
             implementation := shr(0x60, shl(0x60, implementation))
@@ -123,9 +123,9 @@ library ERC1967Utils {
     }
 
     /// @notice Updates the proxy admin to a new address.
-    /// @dev Reverts with {InvalidAdmin} if `admin` is the zero address.
-    ///      Emits {AdminChanged} with previous admin and new admin.
-    /// @param admin The address of the new proxy admin.
+    /// @dev    Reverts with {InvalidAdmin} if `admin` is the zero address.
+    ///         Emits {AdminChanged} with previous admin and new admin.
+    /// @param  admin The address of the new proxy admin.
     function changeAdmin(address admin) internal {
         assembly ("memory-safe") {
             if iszero(shl(0x60, admin)) {
@@ -151,8 +151,8 @@ library ERC1967Utils {
     }
 
     /// @notice Returns the current implementation resolved by beacon via `implementation()`.
-    /// @dev Reverts with {InvalidBeacon} if the call fails or does not return 32 bytes.
-    /// @param beacon The address of the beacon contract to query.
+    /// @dev    Reverts with {InvalidBeacon} if the call fails or does not return 32 bytes.
+    /// @param  beacon The address of the beacon contract to query.
     /// @return implementation The address of the implementation returned by the `beacon.implementation()`.
     function getBeaconImplementation(address beacon) internal view returns (address implementation) {
         assembly ("memory-safe") {
@@ -168,10 +168,10 @@ library ERC1967Utils {
     }
 
     /// @notice Upgrades the beacon and optionally executes an initialization call on its implementation.
-    /// @dev Reverts with {InvalidBeacon} if `implementation()` call fails or returned implementation has no deployed code.
-    ///      Emits {BeaconUpgraded} with `beacon`.
-    /// @param beacon The address of the new beacon contract.
-    /// @param data ABI-encoded initializer calldata, or empty to skip the execution.
+    /// @dev    Reverts with {InvalidBeacon} if `implementation()` call fails or returned implementation
+    ///         has no deployed code. Emits {BeaconUpgraded} with `beacon`.
+    /// @param  beacon The address of the new beacon contract.
+    /// @param  data ABI-encoded initializer calldata, or empty to skip the execution.
     function upgradeBeaconToAndCall(address beacon, bytes memory data) internal {
         assembly ("memory-safe") {
             beacon := shr(0x60, shl(0x60, beacon))
@@ -192,9 +192,9 @@ library ERC1967Utils {
     }
 
     /// @notice Executes initialization on `implementation` with `data` if provided; otherwise validates that no Ether was sent.
-    /// @dev Reverts with {NonPayable} if `data` is empty and `msg.value` is nonzero.
-    /// @param implementation The address of the target for the initialization delegatecall.
-    /// @param data ABI-encoded initializer calldata, or empty to skip the execution.
+    /// @dev    Reverts with {NonPayable} if `data` is empty and `msg.value` is nonzero.
+    /// @param  implementation The address of the target for the initialization delegatecall.
+    /// @param  data ABI-encoded initializer calldata, or empty to skip the execution.
     function _executeInitialization(address implementation, bytes memory data) private {
         assembly ("memory-safe") {
             switch mload(data)

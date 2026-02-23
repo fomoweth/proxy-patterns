@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
 
-/// @title Proxy
+/// @title  Proxy
 /// @notice Provides a fallback function that delegates all calls using the EVM instruction `delegatecall`.
 abstract contract Proxy {
     /// @notice Delegates the current call to `implementation`.
@@ -23,7 +23,7 @@ abstract contract Proxy {
     }
 
     /// @notice Returns the current implementation address.
-    /// @dev Should be overridden per pattern.
+    /// @dev    Should be overridden per pattern.
     function _implementation() internal view virtual returns (address);
 
     /// @notice Delegates the current call to the address returned by `_implementation()`.
@@ -32,13 +32,13 @@ abstract contract Proxy {
     }
 
     /// @notice Fallback function that delegates calls to the current implementation address.
-    ///	@dev Will run if no other function in the contract matches the call data.
+    ///	@dev    Will run if no other function in the contract matches the call data.
     fallback() external payable virtual {
         _fallback();
     }
 
     /// @notice Fallback function that delegates calls to the current implementation address.
-    /// @dev Will run if the call data is empty.
+    /// @dev    Will run if the call data is empty.
     receive() external payable virtual {
         _fallback();
     }

@@ -4,7 +4,7 @@ pragma solidity ^0.8.24;
 import {Proxy} from "../Proxy.sol";
 import {ERC1967Utils} from "./ERC1967Utils.sol";
 
-/// @title ERC1967Proxy
+/// @title  ERC1967Proxy
 /// @notice Minimal upgradeable proxy that delegates calls to an implementation stored in the ERC-1967 implementation slot.
 /// @author fomoweth
 contract ERC1967Proxy is Proxy {
@@ -12,8 +12,8 @@ contract ERC1967Proxy is Proxy {
     error ProxyUninitialized();
 
     /// @notice Initializes the proxy with an implementation and optional initializer calldata.
-    /// @param implementation The address of the initial implementation contract.
-    /// @param data ABI-encoded initializer calldata, or empty to skip initialization when permitted.
+    /// @param  implementation The address of the initial implementation contract.
+    /// @param  data ABI-encoded initializer calldata, or empty to skip initialization when permitted.
     constructor(address implementation, bytes memory data) payable {
         if (!_unsafeAllowUninitialized() && data.length == 0) revert ProxyUninitialized();
         ERC1967Utils.upgradeToAndCall(implementation, data);

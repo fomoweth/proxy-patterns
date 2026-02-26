@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
 
+import {Proxy} from "src/Proxy.sol";
 import {ERC1967Utils} from "../ERC1967Utils.sol";
-import {Proxy} from "../../Proxy.sol";
 
 /// @title BeaconProxy
 contract BeaconProxy is Proxy {

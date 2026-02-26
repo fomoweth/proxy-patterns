@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
 
-import {Proxy} from "../Proxy.sol";
+import {Proxy} from "src/Proxy.sol";
 import {ERC1967Utils} from "./ERC1967Utils.sol";
 
 /// @title  ERC1967Proxy

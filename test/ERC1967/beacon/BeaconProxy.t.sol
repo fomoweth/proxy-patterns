@@ -1,233 +1,156 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
 
-import {Test} from "forge-std/Test.sol";
-
 import {ERC1967Utils} from "src/ERC1967/ERC1967Utils.sol";
 import {BeaconProxy} from "src/ERC1967/beacon/BeaconProxy.sol";
 import {UpgradeableBeacon} from "src/ERC1967/beacon/UpgradeableBeacon.sol";
 
-import {MockImplementationV1, MockImplementationV2} from "test/mocks/MockImplementation.sol";
+import {MockTargetV1, MockTargetV2} from "test/mocks/MockTarget.sol";
+import {BaseTest} from "test/BaseTest.sol";
 
-contract BeaconProxyTest is Test {
-    error Unauthorized();
-
-    address internal immutable alice = makeAddr("alice");
-    address internal immutable bob = makeAddr("bob");
-
+contract BeaconProxyTest is BaseTest {
     UpgradeableBeacon internal beacon;
-
     address payable internal proxy;
 
-    MockImplementationV1 internal mockV1;
-    MockImplementationV2 internal mockV2;
+    MockTargetV2 internal mockProxy;
+    MockTargetV1 internal mockTargetV1;
+    MockTargetV2 internal mockTargetV2;
 
-    MockImplementationV1 internal implementationV1;
-    MockImplementationV2 internal implementationV2;
+    function setUp() public {
+        mockTargetV1 = new MockTargetV1();
+        mockTargetV2 = new MockTargetV2();
 
-    function setUp() public virtual {
-        implementationV1 = new MockImplementationV1();
-        implementationV2 = new MockImplementationV2();
+        beacon = new UpgradeableBeacon(address(mockTargetV1), address(this));
 
-        beacon = new UpgradeableBeacon(address(implementationV1), address(this));
+        vm.expectEmit(true, true, true, true);
+        emit ERC1967Utils.BeaconUpgraded(address(beacon));
 
-        bytes memory data = abi.encodeWithSelector(MockImplementationV1.initialize.selector, uint256(10));
+        bytes memory data = abi.encodeWithSelector(MockTargetV1.initialize.selector, initialNumber);
         proxy = payable(address(new BeaconProxy(address(beacon), data)));
-
-        mockV1 = MockImplementationV1(proxy);
-        mockV2 = MockImplementationV2(proxy);
+        mockProxy = MockTargetV2(proxy);
     }
-
-    // ============================================================
-    // Constructor
-    // ============================================================
 
     function test_constructor_setsBeaconSlot() public view {
-        assertEq(_getBeacon(proxy), address(beacon));
-    }
-
-    function test_constructor_executesInitializer() public view {
-        assertEq(mockV1.getNumber(), uint256(10));
-        assertEq(mockV1.owner(), address(this));
-        assertEq(mockV1.getVersion(), uint64(1));
+        assertEq(getBeacon(proxy), address(beacon));
     }
 
     function test_constructor_resolvesImplementationViaBeacon() public view {
-        assertEq(beacon.implementation(), address(implementationV1));
+        assertEq(beacon.implementation(), address(mockTargetV1));
     }
 
-    function test_constructor_emitsBeaconUpgraded() public {
-        bytes memory data = abi.encodeWithSelector(MockImplementationV1.initialize.selector, uint256(1));
+    function test_constructor_executesInitializer() public view {
+        assertEq(mockProxy.owner(), address(this));
+        assertEq(mockProxy.getVersion(), uint64(1));
+        assertEq(mockProxy.getNumber(), initialNumber);
+    }
 
-        vm.expectEmit(true, false, false, false);
-        emit ERC1967Utils.BeaconUpgraded(address(beacon));
-        new BeaconProxy(address(beacon), data);
+    function test_constructor_withEmptyData() public {
+        assertContract(address(new BeaconProxy(address(beacon), "")));
     }
 
     function test_constructor_revertsIfInvalidBeacon() public {
-        bytes memory data = abi.encodeWithSelector(MockImplementationV1.initialize.selector, uint256(1));
-
         vm.expectRevert(ERC1967Utils.InvalidBeacon.selector);
-        new BeaconProxy(address(0xdead), data);
+        bytes memory data = abi.encodeWithSelector(MockTargetV1.initialize.selector, initialNumber);
+        new BeaconProxy(eoa, data);
     }
 
-    function test_constructor_revertsIfBeaconReturnsEOA() public {
-        // Deploy a beacon pointing to an EOA — the beacon itself deploys, but
-        // creating a BeaconProxy against it should fail because the implementation
-        // returned by the beacon has no code.
-        vm.expectRevert();
-        new UpgradeableBeacon(alice, address(this));
+    function test_constructor_revertsNonPayableIfValueWithEmptyData() public {
+        vm.expectRevert(ERC1967Utils.NonPayable.selector);
+        new BeaconProxy{value: 1 ether}(address(beacon), "");
     }
 
-    // ============================================================
-    // Delegation
-    // ============================================================
-
-    function test_delegation_delegatesToImplementation() public view {
-        assertEq(mockV1.getNumber(), uint256(10));
+    function test_constructor_revertsIfInvalidBeaconImplementation() public {
+        vm.expectRevert(UpgradeableBeacon.InvalidBeaconImplementation.selector);
+        new UpgradeableBeacon(eoa, address(this));
     }
 
-    function test_delegation_stateIsPersisted() public {
-        mockV1.setNumber(42);
-        assertEq(mockV1.getNumber(), uint256(42));
+    function test_delegation_delegatesToImplementation() public {
+        mockProxy.increment();
+        assertEq(mockProxy.getNumber(), initialNumber + 1);
+
+        mockProxy.setNumber(uint256(42));
+        assertEq(mockProxy.getNumber(), uint256(42));
     }
 
-    function test_delegation_increment() public {
-        mockV1.increment();
-        assertEq(mockV1.getNumber(), uint256(11));
+    function test_delegation_revertsIfUnauthorized() public impersonate(eoa) {
+        vm.expectRevert(Unauthorized.selector);
+        mockProxy.setNumber(uint256(99));
     }
 
-    function test_delegation_revertsIfUnauthorized() public {
-        vm.prank(alice);
-        vm.expectRevert();
-        mockV1.setNumber(99);
+    function test_delegation_acceptsEther() public impersonate(eoa) {
+        uint256 msgValue = 1 ether;
+        deal(eoa, msgValue);
+        sendETH(proxy, msgValue);
+        assertEq(proxy.balance, msgValue);
     }
-
-    function test_delegation_acceptsEther() public {
-        deal(alice, 1 ether);
-        vm.prank(alice);
-        (bool success,) = proxy.call{value: 0.5 ether}("");
-        assertTrue(success);
-        assertEq(proxy.balance, 0.5 ether);
-    }
-
-    // ============================================================
-    // Beacon upgrade
-    // ============================================================
 
     function test_upgradeTo_updatesImplementation() public {
-        beacon.upgradeTo(address(implementationV2));
-        assertEq(beacon.implementation(), address(implementationV2));
+        vm.expectEmit(true, true, true, true, address(beacon));
+        emit UpgradeableBeacon.Upgraded(address(mockTargetV2));
+
+        beacon.upgradeTo(address(mockTargetV2));
+        assertEq(beacon.implementation(), address(mockTargetV2));
     }
 
-    function test_upgradeTo_proxyDelegatesNewImplementation() public {
-        mockV1.setNumber(20);
+    function test_upgradeTo_executesInitializer() public {
+        beacon.upgradeTo(address(mockTargetV2));
 
-        bytes memory data = abi.encodeWithSelector(MockImplementationV2.initialize.selector, uint256(5));
-        beacon.upgradeTo(address(implementationV2));
-
-        // Reinitialize V2 through the proxy
+        bytes memory data = abi.encodeWithSelector(MockTargetV2.initialize.selector, initialStep);
         (bool success,) = proxy.call(data);
         assertTrue(success);
 
-        assertEq(mockV2.getNumber(), uint256(20));
-        assertEq(mockV2.getMultiplier(), uint256(5));
-    }
-
-    function test_upgradeTo_newBehaviorAfterUpgrade() public {
-        mockV1.setNumber(10);
-
-        beacon.upgradeTo(address(implementationV2));
-
-        bytes memory data = abi.encodeWithSelector(MockImplementationV2.initialize.selector, uint256(3));
-        (bool success,) = proxy.call(data);
-        assertTrue(success);
-
-        mockV2.increment();
-        assertEq(mockV2.getNumber(), uint256(13));
+        assertEq(mockProxy.getVersion(), uint64(2));
+        assertEq(mockProxy.getStep(), initialStep);
     }
 
     function test_upgradeTo_preservesState() public {
-        mockV1.setNumber(42);
-        mockV1.increment();
-        assertEq(mockV1.getNumber(), uint256(43));
-
-        beacon.upgradeTo(address(implementationV2));
-        assertEq(mockV2.getNumber(), uint256(43));
+        beacon.upgradeTo(address(mockTargetV2));
+        assertEq(mockProxy.owner(), address(this));
+        assertEq(mockProxy.getNumber(), initialNumber);
     }
 
-    function test_upgradeTo_emitsUpgraded() public {
-        vm.expectEmit(true, false, false, false, address(beacon));
-        emit UpgradeableBeacon.Upgraded(address(implementationV2));
-        beacon.upgradeTo(address(implementationV2));
+    function test_upgradeTo_newBehaviorAfterUpgrade() public {
+        beacon.upgradeTo(address(mockTargetV2));
+
+        bytes memory data = abi.encodeWithSelector(MockTargetV2.initialize.selector, initialStep);
+        (bool success,) = proxy.call(data);
+        assertTrue(success);
+
+        mockProxy.increment();
+        assertEq(mockProxy.getNumber(), initialNumber + initialStep);
     }
 
-    function test_upgradeTo_revertsIfNotOwner() public {
-        vm.prank(alice);
+    function test_upgradeTo_revertsIfNotAuthorized() public impersonate(eoa) {
         vm.expectRevert(Unauthorized.selector);
-        beacon.upgradeTo(address(implementationV2));
+        beacon.upgradeTo(address(mockTargetV2));
     }
 
     function test_upgradeTo_revertsIfInvalidImplementation() public {
         vm.expectRevert(UpgradeableBeacon.InvalidBeaconImplementation.selector);
-        beacon.upgradeTo(address(0xdead));
+        beacon.upgradeTo(eoa);
     }
-
-    function test_upgradeTo_revertsIfEOAImplementation() public {
-        vm.expectRevert(UpgradeableBeacon.InvalidBeaconImplementation.selector);
-        beacon.upgradeTo(alice);
-    }
-
-    // ============================================================
-    // Multiple proxies sharing one beacon
-    // ============================================================
 
     function test_multipleProxies_shareBeaconImplementation() public {
-        bytes memory data1 = abi.encodeWithSelector(MockImplementationV1.initialize.selector, uint256(100));
-        bytes memory data2 = abi.encodeWithSelector(MockImplementationV1.initialize.selector, uint256(200));
+        uint256 value1 = uint256(100);
+        uint256 value2 = uint256(200);
+        uint256 value3 = uint256(300);
+
+        bytes memory data1 = abi.encodeWithSelector(MockTargetV1.initialize.selector, value1);
+        bytes memory data2 = abi.encodeWithSelector(MockTargetV1.initialize.selector, value2);
+        bytes memory data3 = abi.encodeWithSelector(MockTargetV1.initialize.selector, value3);
 
         address payable proxy1 = payable(address(new BeaconProxy(address(beacon), data1)));
         address payable proxy2 = payable(address(new BeaconProxy(address(beacon), data2)));
+        address payable proxy3 = payable(address(new BeaconProxy(address(beacon), data3)));
 
-        MockImplementationV1 mock1 = MockImplementationV1(proxy1);
-        MockImplementationV1 mock2 = MockImplementationV1(proxy2);
+        assertEq(MockTargetV1(proxy1).getNumber(), value1);
+        assertEq(MockTargetV1(proxy2).getNumber(), value2);
+        assertEq(MockTargetV1(proxy3).getNumber(), value3);
 
-        assertEq(mock1.getNumber(), uint256(100));
-        assertEq(mock2.getNumber(), uint256(200));
+        beacon.upgradeTo(address(mockTargetV2));
 
-        // Upgrade beacon — both proxies get the new implementation.
-        beacon.upgradeTo(address(implementationV2));
-
-        MockImplementationV2 mockV2_1 = MockImplementationV2(proxy1);
-        MockImplementationV2 mockV2_2 = MockImplementationV2(proxy2);
-
-        // State is preserved independently.
-        assertEq(mockV2_1.getNumber(), uint256(100));
-        assertEq(mockV2_2.getNumber(), uint256(200));
-    }
-
-    // ============================================================
-    // Beacon constructor with empty init data
-    // ============================================================
-
-    function test_constructor_withEmptyData() public {
-        // BeaconProxy does not have the ProxyUninitialized check (that's on ERC1967Proxy).
-        // Empty data should succeed as long as no value is sent.
-        address payable p = payable(address(new BeaconProxy(address(beacon), "")));
-        assertTrue(p.code.length > 0);
-    }
-
-    function test_constructor_revertsNonPayableIfValueWithEmptyData() public {
-        vm.deal(address(this), 1 ether);
-        vm.expectRevert(ERC1967Utils.NonPayable.selector);
-        new BeaconProxy{value: 1 wei}(address(beacon), "");
-    }
-
-    // ============================================================
-    // Helpers
-    // ============================================================
-
-    function _getBeacon(address target) internal view returns (address) {
-        return address(uint160(uint256(vm.load(target, ERC1967Utils.BEACON_SLOT))));
+        assertEq(MockTargetV2(proxy1).getNumber(), value1);
+        assertEq(MockTargetV2(proxy2).getNumber(), value2);
+        assertEq(MockTargetV1(proxy3).getNumber(), value3);
     }
 }
